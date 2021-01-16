@@ -1,0 +1,68 @@
+---
+title: "2b"
+author: "Yiqiao Yin"
+date: "1/14/2021"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Homework: 2b
+
+This homework let us continue with some interesting simulations.
+
+## Write a program
+
+Let me pursue this with regular *R* first.
+
+```{r}
+# Define program
+genY = function(a, b, n, x, sigma) {
+  error = rnorm(n, 0, sigma)
+  return(y = a + b*x + error)
+}
+```
+
+Next, let me code this in *Stan*.
+
+```{r}
+library(cmdstanr)
+
+```
+
+## In R, simulate fake data
+
+In R, simulate fake data for this model with N=100, x uniformly distributed between 0 and 10, and a, b, sigma taking on the values 2, 3, 0.2.
+
+```{r}
+x = runif(100,0,10)
+fakeY = genY(a=2, b=3, n=100, x=x, sigma=0.2)
+hist(fakeY, main = "Generate fake data: Y = a + bX + error")
+```
+
+## Fit the model
+
+Fit the Stan model using your simulated data and check that the true parameter values are approximately recovered.  Check also that you get approximately the same answer as from fitting a classical linear regression.
+
+```{r}
+lm(fakeY~x)
+```
+
+We can read off the estimated parameters that $a \approx 2$ and $b \approx 3$.
+
+## Make a single graph
+
+Make a single graph showing a scatterplot of the simulated data and the fitted model.
+
+```{r}
+plot(x, fakeY, main = "Scatter Plot of Fake Data and Fitted Model")
+abline(a = 2, b = 3, col = "green")
+```
+
+## Report 
+
+Report on any difficulties you had at any of the above steps. Not sure what the motivation of using *Stan* is. 

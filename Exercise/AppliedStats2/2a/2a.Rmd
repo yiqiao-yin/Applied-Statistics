@@ -1,0 +1,77 @@
+---
+title: "2a"
+author: "Yiqiao Yin"
+date: "1/16/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this problem, we want to compute nonconjugate single-parameter model: suppose $y_1, ..., y_5$ are independent samples from a Cauchy distribution with unknown center $\theta$ and known scale 1, i.e. it follows the following form
+$$p(y_i|\theta) \approx \frac{1}{1 + (y_i - \theta)^2)}$$
+
+## a. Compute the unnormalized posterior
+
+```{r}
+# sampling distribution
+sampleDistribution = function(y, theta) {
+  d0 = NULL
+  for (i in 1:length(theta)) { d0 = c(d0, prod(dcauchy(y, theta[i]))) }
+  return(d0)
+} # finished function definition
+
+# data
+y = c(43, 44, 45, 46.5, 47.5)
+step = 0.01
+theta = seq(0, 100, step)
+
+# unnormalized f
+unnormalizedDistribution = sampleDistribution(y, theta)
+
+# normalized f
+normalizedDistribution = unnormalizedDistribution / (step*sum(unnormalizedDistribution))
+
+# plot
+plot(
+  theta,
+  normalizedDistribution,
+  ylim = c(0, 1.5*max(normalizedDistribution)),
+  type = "l", xlab = "theta", ylab = "Normalized Posterior",
+  col = "blue"
+)
+```
+
+## b. Sample 1000 draws
+
+Sample 1000 draws of $\theta$ from the posterior density and plot a histogram of the draws.
+
+```{r}
+# sampling
+samplingTheta = sample(theta, 1000, step*normalizedDistribution, replace = TRUE)
+
+# histogram
+hist(
+  samplingTheta,
+  xlab = "theta", 
+  breaks = seq(40, 50, 0.1),
+  xaxs = "i", yaxs = "i", 
+  ylim = c(0, 60), col = "blue"
+)
+```
+
+## c. Use 1000 samples
+
+Use the 1000 samples of $\theta$ to obtain 1000 samples from the predictive distribution of a future observation, $y_6$, and plot a histogram of the predictive draws.
+
+```{r}
+y6 = rcauchy(length(samplingTheta), samplingTheta, 1)
+hist(
+  y6, 
+  xlab = "New Observation", nclass = 100,
+  xaxs = "i", yaxs = "i",
+  ylim = c(0, 500), col = "green" )
+```
