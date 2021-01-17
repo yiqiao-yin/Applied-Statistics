@@ -3,6 +3,7 @@ title: "2b"
 author: "Yiqiao Yin"
 date: "1/14/2021"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 ---
@@ -19,50 +20,82 @@ This homework let us continue with some interesting simulations.
 
 Let me pursue this with regular *R* first.
 
-```{r}
+```{r, messages=FALSE, warning=FALSE}
 # Define program
-genY = function(a, b, n, x, sigma) {
+genY = function(alpha, beta, n, x, sigma) {
   error = rnorm(n, 0, sigma)
-  return(y = a + b*x + error)
+  return(y = alpha + beta*x + error)
 }
 ```
 
 Next, let me code this in *Stan*.
 
-```{r}
+```{r, messages=FALSE, warning=FALSE}
 library(cmdstanr)
-
+cmdstan_path()
+file <- file.path(cmdstan_path(), "examples", "model", "linearModel.stan")
+mod <- cmdstan_model(file)
+mod$print()
 ```
 
 ## In R, simulate fake data
 
 In R, simulate fake data for this model with N=100, x uniformly distributed between 0 and 10, and a, b, sigma taking on the values 2, 3, 0.2.
 
-```{r}
+```{r, messages=FALSE, warning=FALSE}
 x = runif(100,0,10)
-fakeY = genY(a=2, b=3, n=100, x=x, sigma=0.2)
-hist(fakeY, main = "Generate fake data: Y = a + bX + error")
+fakeY = genY(alpha = 2, beta = 3, n = 100, x = x, sigma = 0.2)
+hist(fakeY, main = "Generate fake data: Y = alpha + beta*X + sigma")
 ```
 
 ## Fit the model
 
-Fit the Stan model using your simulated data and check that the true parameter values are approximately recovered.  Check also that you get approximately the same answer as from fitting a classical linear regression.
+Fit the *Stan* model using your simulated data and check that the true parameter values are approximately recovered.  Check also that you get approximately the same answer as from fitting a classical linear regression.
 
-```{r}
-lm(fakeY~x)
+```{r, messages=FALSE, warning=FALSE}
+# we can check with linear model
+summary(lm(fakeY~x))
+```
+We can read off the estimated parameters that $a \approx 2$ and $b \approx 3$.
+
+In *Stan*, we do the following
+
+Next, let us write in *Stan*. Using *mod$sample()* function, we are able to generate MCMC simulation.
+
+```{r, messages=FALSE, warning=FALSE}
+# names correspond to the data block in the Stan program
+data_list <- list(N = 1e2, x = x, y = fakeY)
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 123,
+  chains = 2,
+  parallel_chains = 2,
+  refresh = 500
+)
 ```
 
-We can read off the estimated parameters that $a \approx 2$ and $b \approx 3$.
+```{r, messages=FALSE, warning=FALSE}
+# check out the summary of the fit
+fit$summary()
+```
+We can observe from the above table in *fit&summary()* we have mean of alpha to be approximately 2, mean of beta to be approximately 3, and mean of sigma to be approximately 0.2. This corresponds to the results coming from classical linear regression in *R*.
 
 ## Make a single graph
 
 Make a single graph showing a scatterplot of the simulated data and the fitted model.
 
-```{r}
+```{r, messages=FALSE, warning=FALSE}
 plot(x, fakeY, main = "Scatter Plot of Fake Data and Fitted Model")
 abline(a = 2, b = 3, col = "green")
 ```
 
 ## Report 
 
-Report on any difficulties you had at any of the above steps. Not sure what the motivation of using *Stan* is. 
+Report on any difficulties you had at any of the above steps. 
+
+It took a while to read through the documentation of *Stan*, but after some discussion with classmates it is quite clear. However, I have the following thoughts:
+
+I am not sure what the motivation of using *Stan* is. After carrying out such approach using *Stan*, I understand that the philosophy is to develop a pipeline with ingredients and recipes being user friendly and then the kitchen automatically cooks amazing meal! (In this analogy, the kitchen is *Stan* and since *Stan* compiles *C++* the selling point is that it's ``faster''.) 
+
+However, in computer science knowledge, a pipeline is convincing if it has more optimal performance in time / space complexity. For example, engineers present two pipelines: (A) program *A* has time of $O(n)$ and space of $O(n)$, and (B) program *B* has time of $O(n^2)$ and space of $O(\exp(n))$. Then obviously (A) is more optimal. I am unclear *Stan* survives this measurement comparing with *apply()* in *R* (also compiled from *C++*), and *numpy*, *random* or *tensorflow* in *Python*.
