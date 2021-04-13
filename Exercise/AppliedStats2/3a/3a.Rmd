@@ -1,0 +1,198 @@
+---
+title: "3a"
+author: "Yiqiao Yin"
+date: "1/25/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This homework let us continue with some interesting simulations.
+
+References:
+
+- https://mc-stan.org/cmdstanr/articles/cmdstanr.html
+- https://mc-stan.org/docs/2_18/stan-users-guide/logistic-probit-regression-section.html
+
+## Write a program
+
+Let me pursue the following by two attempts. The first attempt is an old version that I initially tried. However, there are several important issues related to bad fit ($\hat{R}$, divergent mixture issues, and chain issues) that are not very well done. The second attempt is a correct version after inputs from TA. We decided to leave the first attempt as well because the diagnosis of issues can also be valuable for the class.
+
+### First Attempt
+
+In the first attempt, I had the following design. Notice in the parameters, I did not have lower bound specified to be 0 for $\alpha$ and $\beta$. In other words, I did not have *<lower=0>* specified like I did for $\sigma$ in the parameters. This is one of the reasons the results are poor. 
+
+```{r, messages=FALSE, warnings=FALSE}
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_3a_poor.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+This is a poor fit. Notice that after the running of the following code, we have warning messages telling us the simulation ended with a divergence. This leads to insufficient exploration for posterior sampling. I discussed this part (the warning messages) in more details in Section *Comment* in the bottom of the notebook.
+
+```{r, messages=FALSE, warnings==FALSE}
+# names correspond to the data block in the Stan program
+n = 100
+alpha = 2
+beta = 3
+sigma = 0.02
+error = rnorm(n, 0, sigma)
+x = runif(100, 0, 10)
+fakeY = 1/(alpha + beta*x) + error
+data_list <- list(N = 100, x = x, y = fakeY)
+init <- function() {
+  list(a = runif(1, 0, 10),
+       b = runif(1, 0, 10),
+       sigma = runif(1, 0, 1)) }
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 123,
+  chains = 8,
+  save_warmup = TRUE,
+  refresh = 0 )
+```
+
+We can then print the results. As we can observe that the results are quite poor with numbers all over the places. In other words, the sample mean is far away from theoretical values that we initiated above, i.e. $\alpha = 2$, and $\beta = 3$.
+
+```{r, messages=FALSE, warnings=FALSE}
+# check out the summary of the fit
+fit$summary()
+```
+
+### Second Attempt
+
+Let me pursue this with regular *R* first.
+
+```{r, messages=FALSE, warnings=FALSE}
+# Define program
+genY = function(alpha, beta, n, x, sigma) {
+  error = rnorm(n, 0, sigma)
+  return(y = 1/(alpha + beta*x) + error)
+}
+```
+
+Next, let me code this in *Stan*.
+
+```{r, messages=FALSE, warnings=FALSE}
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_3a.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+#### In R, simulate fake data
+
+In R, simulate fake data for this model with N=100, x uniformly distributed between 0 and 10, and a, b, sigma taking on the values 2, 3, 0.2. Let us simply simulate $X \sim \text{unif}([0,1])$ and we use the *genY()* function defined above to generate *fakeY*.
+
+```{r, messages=FALSE, warnings=FALSE}
+x = runif(100, 0, 10)
+fakeY = genY(alpha = 2, beta = 3, n = 100, x = x, sigma = 0.02)
+hist(fakeY, main = "Generate fake data: Y = 1/(alpha + beta*X) + sigma")
+```
+
+#### Fit the model
+
+Fit the *Stan* model using your simulated data and check that the true parameter values are approximately recovered.  Check also that you get approximately the same answer as from fitting a classical linear regression.
+
+```{r, messages=FALSE, warnings=FALSE}
+# we can check with linear model
+summary(lm(fakeY~x))
+```
+
+In *Stan*, we do the following
+
+Next, let us write in *Stan*. Using *mod$sample()* function, we are able to generate MCMC simulation.
+
+```{r, messages=FALSE, warnings=FALSE}
+# names correspond to the data block in the Stan program
+data_list <- list(N = 100, x = x, y = fakeY)
+init <- function() {
+  list(alpha = runif(1, 0, 10),
+       beta = runif(1, 0, 10),
+       sigma = runif(1, 0, 1)) }
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+```
+
+```{r, messages=FALSE, warnings=FALSE}
+# check out the summary of the fit
+fit$summary()
+```
+
+```{r}
+print("Plot All Chains of alpha")
+matplot(data.frame(fit$draws()[,,2]), type = "l",
+        xaxs = "i", yaxs = "i", 
+        ylim = c(min(data.frame(fit$draws()[,,2])), 
+                 max(data.frame(fit$draws()[,,2]))),
+        ylab = "alpha")
+legend(50, max(data.frame(fit$draws()[,,2])) + 3.5e18, 
+       legend = c(1:10), col = c(1:10), lty = 1:10, cex = 0.7)
+```
+
+```{r}
+print("Plot All Chains of beta")
+matplot(data.frame(fit$draws()[,,3]), type = "l",
+        xaxs = "i", yaxs = "i", 
+        ylim = c(min(data.frame(fit$draws()[,,3])), 
+                 max(data.frame(fit$draws()[,,3]))),
+        ylab = "beta")
+legend(50, max(data.frame(fit$draws()[,,3])) * 0.9, 
+       legend = c(1:10), col = c(1:10), lty = 1:10, cex = 0.7)
+```
+
+```{r}
+print("Plot All Chains of sigma")
+matplot(data.frame(fit$draws()[,,4]), type = "l",
+        xaxs = "i", yaxs = "i", 
+        ylim = c(min(data.frame(fit$draws()[,,4])), 
+                 max(data.frame(fit$draws()[,,4]))),
+        ylab = "sigma")
+legend(800, max(data.frame(fit$draws()[,,4])) * 0.9, 
+       legend = c(1:10), col = c(1:10), lty = 1:10, cex = 0.7)
+```
+
+#### Stan versus LM
+
+Make a single graph showing a scatterplot of the simulated data and the fitted model.
+
+```{r, messages=FALSE, warnings=FALSE}
+matplot(
+  x,
+  data.frame(cbind(Yp = fakeY, Yhat = predict(lm(fakeY~x), data.frame(x)) )),
+  main = "Simulate Y (in Black) vs. \nEst. Y from Linear Model (in Red)",
+  ylab = "approx",
+  xaxs = "i", yaxs = "i", pch = 1:2, col = 1:2, cex = 0.5)
+legend(0.1, 0.3, legend = 1:2, pch = c(1,1), col = 1:2)
+```
+
+
+## Comment
+
+- The first thing is notice is the warning message. In homework before where I had 4 chains and in this current version I had 10 chains, we receive warning message that says ``transition ended with a divergence''. This divergence warning message indicates that the MCMC results might be biased. Though we have not covered the model diagnostic portion yet, potential point of attack can be to use an informative prior.  A small note is to think about the distribution of the parameters in the model $y ~ \text{Normal}(\frac{1}{\alpha + \beta X}, \sigma^2)$. If $\alpha ~ \text{uniform}([0,1])$, then when $\alpha$ gets close to 0, the inverse of $\alpha$ will blow up which creates huge bias in the results. In other words, if I were careless and choose a sub-optimal prior for $\alpha$, it could produce some very risky results. **Remark**: It is not required to solve the problem for the sake of this homework, because we are not given all the tools to completely diagnose the problem. However, it is important to bring up the attention of warning message. Any ignorance of the warning message would lower grade by 2. 
+
+- For MCMC, the initialization is subjectively chosen by the statistician. For one chain, we generate many samples and we generate the posterior mean. Since the initial point is random and may have bias, we have *warmup* period or *burning* period to drop the first certain many points in the simulation so that we get the simulated posterior to be within certain range.
+
+- Another way is to have many chains generated in the MCMC simulation. The intention is to observe mixture of multiple different chains in many simulations if posterior is to be believed and sound. There is incidence (such as this homework) that we observe non-mixture multiple chains. 
+
+- Next, $\hat{R}$ also deserves our attention because it is defined as the ratio of "between-chain variance" over "within-chain variance". Ideally, we observe mixed MCMC and here $\hat{R}$ would be approximately 1. However, in this homework, we do not have the luck to experience the ideal phenomenon. Instead we observe that $\hat{R}$ is quite large. For example, $\hat{R}_{\alpha}$ is 3.6 and $\hat{R}_{\beta}$ is 5.14. (these numbers may change when knighting the RMD document.) Correction: After I added initialization, it seems like the large $\hat{R}$ went away for $\alpha$ and $\beta$. From trace plots above, it seems like this has been mixing well.
+
+- Such challenge (non-mixed chains) is indeed an interesting problem, discussed in Figure 1 of Gelman (2020). The left plot in the Figure 1 in this [paper](https://arxiv.org/pdf/1903.08008.pdf) has two sequence of iterative simulations and either of them alone seems to be stable yet neither of them have converged to a common distribution. The right plot seems to have two sequences that covers a common distribution but neither sequence appears stationary. This is mentioned because we observe similar pattern in our homework as well. In the traceplot for alpha, the red chain and the green chain seem to be covering a common distribution while the rest of the chains are not representing the same thing. In the traceplot for beta, we do not observe convergence of different chains. Though it seems like we observe some mixture of red and blue chains for the traceplot of sigma, I do not see stable chains and the red and blue chains are exhibiting very different patterns from the rest of the candidates. Paper: [here](https://arxiv.org/pdf/1903.08008.pdf)
+
+- A few last words on the difference of *lm()* function and *stan* package. While the *R* function *lm()* fits an OLS regression which suffers from linearity, normality, homoscedasticity assumptions, the proposed package *stan* generates approximate sampling from posterior distribution. Another thing to notice is that *Stan* is a compiled program. In other words, the package takes parameter input and model input as ingredients and recipe and cooks a nice meal. This creates a good stable format of programming but also allows full flexibility for programming experience.
