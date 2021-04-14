@@ -1,0 +1,197 @@
+---
+title: "4b"
+author: "Yiqiao Yin"
+date: "2/9/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Homework
+
+There are two components. First, let me do the homework problem from textbook BDA. Next, let me do a small Hierarchical Linear Model.
+
+## Part I
+
+### Model
+
+From text, we have posterior to be 
+$$p(y, n|\theta) = \prod_{i=1}^n \theta^{y_i} (1 - \theta)^{1 - y_i}$$
+and since we restrain our data to stop at 13 zeros we have updated model
+$$p(y, n|\theta) = \prod_{i=1}^n \theta^{y_i} (1 - \theta)^{1 - y_i} \cdot \mathbb{1}_{\sum_{i=1}^{n-1} (1 - y_i) = 12} \mathbb{1}_{\sum_{i=1}^n (y - y_i) = 13}$$
+which gives us $\theta^7 (1 - \theta)^{13}$. If the prior for $\theta$ is unchanged, then the posterior is not changed. 
+
+### Perform Posterior Test
+
+Perform a posterior predictive check, using the same test quantity, $T = \text{number of switches}$, but simulating the replications $y^\text{rep}$ under the new measurement protocol. Display the predictive simulations, $T(y^\text{rep})$, and discuss how they differ from Figure 6.5.
+
+```{r}
+testQuant = NULL
+testQuant = sapply(
+  1:1e3,
+  function(s) {
+    theta = rbeta(1, 8, 14)
+    yRep = rbinom(1, 1, theta)
+    while (sum(yRep == 0) < 13) {
+      yRep = c(yRep, rbinom(1, 1, theta))}
+    nRep = length(yRep)
+    return(
+      c( testQuant, sum(yRep[2:nRep] != yRep[1:(nRep-1)]) )
+    )
+  }
+)
+```
+
+```{r}
+hist(
+  testQuant, xlab = "T(Y - YRep)",
+  main = paste0(
+    "Histogram of Posterior Predictive Distribution; \nRange = [", min(testQuant),
+    ", ", max(testQuant), "]"),
+  yaxt = "n",
+  breaks = seq(-.5, max(testQuant) + .5), cex = 2)
+```
+
+The graph above is the posterior predictive distribution. Let me make the following observations:
+
+- Comparing with Figure 6.5 in the text, this posterior distribution is wider spread, i.e. $[0, 22]$ while in textbook Figure 6.5 has a spread of $[0, 16]$. 
+
+- Another difference is the distribution above has a lot of posterior samples fall on even numbers. For example, we observe that from 0, the bar in the histogram is higher at the position of 2, 4, 6, 8. This is not a phenomenon from the textbook. 
+
+## Part II
+
+This section let me conduct a small example of Hierarchical Linear Model.
+
+### Data
+
+Let me use a sample data from *cheese* package. This is published by Rossi, Allenby and McCulloch (2005) as a demonstration. 
+
+The data has marketing information of a certain brand of cheese:
+- VOLUME: weekly sales volume
+- PRICE: unit retail price
+- DISP: display activity level in various regional retailer accounts
+
+The goal is to build a model 
+$$\log(\text{Volume}) = \beta_1 + \beta_2 * \text{Display} + \beta_3 * \log(\text{Price}) + \epsilon$$
+while the term $\epsilon$ is unquantifiable information in regional market. 
+
+### Goal
+
+We want to fit the data and estimate the average impact on sales volumes of the retailers if the unit retail price is to be raised up.
+
+```{r}
+library(bayesm) 
+data(cheese) 
+str(cheese)
+```
+
+```{r}
+retailer <- levels(cheese$RETAILER) 
+nreg <- length(retailer); nreg
+```
+
+Define a filter that is dependent to each retailer.
+
+```{r}
+# code we use would be defined as the following
+# we will use this code in the for loop below
+# filter <- cheese$RETAILER==retailer[i]
+```
+
+### Design of Experiment
+
+Loop through all accounts, and create a list of data with response $Y$ to be Volume and explanatory variable $X$ to be Display and log of Price.
+
+```{r}
+regdata <- NULL 
+for (i in 1:nreg) {
+  filter <- cheese$RETAILER==retailer[i]
+  y <- log(cheese$VOLUME[filter])
+  X <- cbind(
+    1,      # intercept placeholder
+    cheese$DISP[filter],
+    log(cheese$PRICE[filter]))
+  regdata[[i]] <- list(y=y, X=X) 
+}
+```
+
+### Running MCMC
+
+Combine data in a list and run *MCMC* in *bayesm* package.
+
+```{r}
+Data <- list(regdata=regdata) 
+Mcmc <- list(R=2000)
+system.time( 
+  out <- bayesm::rhierLinearModel(
+    Data=Data, 
+    Mcmc=Mcmc)) 
+```
+
+Print the summary for betas, i.e. here we are referring to the model 
+$$\log(\text{Volume}) = \beta_1 + \beta_2 * \text{Display} + \beta_3 * \log(\text{Price}) + \epsilon$$
+
+```{r}
+# Summary
+summary(out$Vbetadraw)
+```
+
+```{r}
+par(mfrow=c(3,1))
+matplot(t(out$betadraw[,1,]), lty = 1:88, type = "l",
+        xaxs = "i", yaxs = "i", ylab = "posterior sampling",
+        xlab = "iterations", main = "88 Retailers: Posterior Sampling for Beta1")
+matplot(t(out$betadraw[,2,]), lty = 1:88, type = "l",
+        xaxs = "i", yaxs = "i", ylab = "posterior sampling",
+        xlab = "iterations", main = "88 Retailers: Posterior Sampling for Beta2")
+matplot(t(out$betadraw[,3,]), lty = 1:88, type = "l",
+        xaxs = "i", yaxs = "i", ylab = "posterior sampling",
+        xlab = "iterations", main = "88 Retailers: Posterior Sampling for Beta3")
+```
+
+### Result
+
+Let us drop the the first 10\% of the samples for burn-in (or sometimes called ``warmup'' period). Then let us compute the mean of betas.
+
+```{r}
+betas = sapply(
+  1:3,
+  function(s) {
+    mean(as.vector(out$betadraw[, s, 201:2000]))
+  }
+)
+betaSDs = sapply(
+  1:3,
+  function(s) {
+    sd(as.vector(out$betadraw[, s, 201:2000]))
+  }
+)
+
+result = cbind(
+  betaMean = c(beta1 = betas[1],
+    beta2 = betas[2],
+    beta3 = betas[3] ),
+  betaSD = c(beta1 = betaSDs[1],
+    beta2 = betaSDs[2],
+    beta3 = betaSDs[3] ) )
+data.table::data.table(result, keep.rownames=TRUE)
+```
+
+### Interpretation
+
+Hence, we have estimated model to be
+$$\log(\text{Volume}) = 10.3 + 1 * \text{Display} + -2.14 * \log(\text{Price}) + \epsilon$$
+and we can further compute marginal signal for the variable *unit price*
+
+```{r}
+increase = 0.1 # suppose increase of 10%
+exp(betas[3] * log(1+increase))
+```
+
+In other words, if I raise log price up by 10\%, I am expecting sales to only be about 81\% of before the raise. Hence, it would be a 19\% drop in sales.
