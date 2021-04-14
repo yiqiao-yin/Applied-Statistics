@@ -1,0 +1,196 @@
+---
+title: "8b"
+author: "Yiqiao Yin"
+date: "2/23/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Simulation
+
+Program a simulation in R related to the "Should we take measurements at an intermediate design point?" paper. Set up a scenario in which E(y|x) is a quadratic function of x, and where data could be taken at x=0,0.5,1 or just at 0 and 1, and compare these results for different levels of curvature. Unlike the published paper, use a binomial rather than a normal model, so that the outcome is the number of patients in each group who die.
+
+Let us first define the data. We draw $n = 250$ samples from $\text{Bernoulli}(N, p = 0.5)$ distribution. We set the parameter $k = 1$ in *rbinom* function and this ensures that the samples only take values 1 or 0. In other words, we have the following:
+$$X \sim \text{Bernoulli}(p = 0.5)$$
+as the explanatory variables. As indicated in the problem, this ensures that we are modeling a binary variable.
+
+Moreover, for some fixed values $a$, $b$, and $c$, we define a quadratic function as the following
+$$y = aX^2 + bX + c$$
+and since $X$ only takes values 1 or 0 we have outcome variable $y$ take only two values as well. 
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create a N x k matrix of covariates
+N = 250
+X = cbind(rbinom(N, 1, 0.5)) # bernoulli: values take 1 or 0
+print(table(X))
+
+# Create a normally distributed variable that is a function of the covariates
+a = 2
+b = 3
+c = 4
+y = a*X^2 + b*X + c # y is defined as a quadratic function of x
+print(table(y))
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* package
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan"
+setwd(path)
+file = path
+set_cmdstan_path(file)
+file <- file.path(path, "linearModel_8b.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit1 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit1$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+# ex: let us take the first 3 and the last 3 as example
+library(bayesplot)
+library(tidyverse)
+fit1$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### II. Coefficients from Normal with Zero-center
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b_ii.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit2 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit2$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+fit2$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### III. Coefficients from Double Exponential
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b_iii.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit3 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit3$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+# ex: let us take the first 3 and the last 3 as example
+library(bayesplot)
+fit3$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### IV. Coefficients from Student-t
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b_iv.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit4 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit4$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+# ex: let us take the first 3 and the last 3 as example
+library(bayesplot)
+fit4$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### LOO
+
+Let us use leave-one-out to diagnose the fit for the above models.
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+loo2 <- fit2$loo()
+loo3 <- fit3$loo()
+loo4 <- fit4$loo()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+print(loo2)
+print(loo3)
+print(loo4)
+```
