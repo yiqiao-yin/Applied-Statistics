@@ -1,0 +1,210 @@
+---
+title: "6a"
+author: "Yiqiao Yin"
+date: "2/17/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rstan)
+library(rstanarm)
+```
+
+## Model Fitting and Expansion
+
+Assignment:
+With your partner, fit a model to your data and then do some model checking. Use the results of the model check to inspire some model expansion.  Fit two new models and check their fits too.
+
+This assignment I did it myself and there is no collaboration. I am taking what we learned from homework *3a* and apply the approach on a real data (with 2 covariates). The goal is to see if we can generate a good fit from direct approach and use that as benchmark. If the fit is bad (which I guess it will be), then the idea is to expand and play around with parameters or model to see if we can generate a better fit.
+
+### Recall Assignment 3a
+
+```{r, messages=FALSE, warning=FALSE}
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6a.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE}
+x = runif(100, 0, 10)
+alpha = 2
+beta = 3
+error = 0.02
+fakeY  = 1/(alpha + beta*x) + error
+```
+
+```{r, messages=FALSE, warning=FALSE}
+# names correspond to the data block in the Stan program
+data_list <- list(N = 100, x = x, y = fakeY)
+init <- function() {
+  list(a = runif(1, 0, 10),
+       b = runif(1, 0, 10),
+       sigma = runif(1, 0, 1)) }
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+```
+
+```{r, messages=FALSE, warning=FALSE}
+# check out the summary of the fit
+fit$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE}
+library(bayesplot)
+fit$draws() %>% mcmc_trace()
+```
+
+### Real Data
+
+This part let me fit what we have in assignment 3a directly on a real world data called *anorexia*.
+
+```{r, messages=FALSE, warning=FALSE}
+anorexia = MASS::anorexia
+data.table::data.table(anorexia)
+```
+
+```{r, messages=FALSE, warning=FALSE}
+anorexia$Treat = as.numeric(as.factor(as.character(as.factor(anorexia$Treat))))
+data.table::data.table(anorexia)
+```
+
+```{r, messages=FALSE, warning=FALSE}
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6a_apply.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+
+```{r, messages=FALSE, warning=FALSE}
+n = nrow(anorexia)
+x1 = anorexia$Prewt
+x2 = anorexia$Treat
+y = anorexia$Postwt
+
+# names correspond to the data block in the Stan program
+data_list <- list(N = n, x1 = x1, x2 = x2, y = y)
+init <- function() {
+  list(alpha = rnorm(1, 0, 1),
+       beta1 = rnorm(1, 0, 1),
+       beta2 = rnorm(1, 0, 1),
+       sigma = rnorm(1, 0, 1)) }
+
+fit <- mod$sample(
+  data = data_list,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+```
+
+Notice that in warning message we get rejection of Metropolis proposal in each chain. In addition, the location parameter is also inf. It also says if the warning occurs sporadically, then the sampler is fine. We don't have sufficient tools to fully diagnose what is going on here. However, it leads me to suspect that perhaps this is not an ideal fit.
+
+```{r, messages=FALSE, warning=FALSE}
+# check out the summary of the fit
+fit$summary()
+```
+
+We can also check the summary which is printed above. We can see the sampling average for the posterior distribution for the parameters $\alpha$, $\beta_1$, and $\beta_2$. We can also do a traceplot below.
+
+```{r, messages=FALSE, warning=FALSE}
+library(bayesplot)
+fit$draws() %>% mcmc_trace()
+```
+
+### Update
+
+We fit the model using *rstanarm*. Instead of building MCMC using model from $\mathcal{N}(\alpha + \beta_1 X_1 + \beta_2 X_2, \sigma^2)$, we assume Gaussian family using GLM.
+
+```{r, messages=FALSE, warning=FALSE}
+fit_rstanarm <- stan_glm(
+  Postwt ~ .,
+  data = anorexia,
+  family = "gaussian" )
+```
+
+Check out the summary of the fit.
+
+```{r, messages=FALSE, warning=FALSE}
+summary(fit_rstanarm)
+```
+
+When fitting a model using MCMC, it is important to check if the chains have converged.
+
+```{r}
+library(bayesplot)
+
+fit_rstanarm %>%
+  mcmc_trace()
+```
+
+### Model Expansion
+
+It is not entirely sure that a simple linear model can take care of the problem. Let us expand the model by introducing interaction term and also some power terms by the original variables. In other words, let us introduce *Treat_Prewt* that is the product of *Treat* and *Prewt*. We can also introduce *Treat2* and *Prewt2* that are the square of *Treat* and *Prewt*.
+
+```{r, messages=FALSE, warning=FALSE}
+anorexia$Treat_Prewt = anorexia$Treat * anorexia$Prewt
+anorexia$Treat2 = anorexia$Treat^2
+anorexia$Prewt2 = anorexia$Prewt^2
+data.table::data.table(anorexia)
+```
+
+```{r, messages=FALSE, warning=FALSE}
+fit_rstanarm <- stan_glm(
+  Postwt ~ .,
+  data = anorexia,
+  family = "gaussian" )
+```
+
+Check out the summary of the fit.
+
+```{r, messages=FALSE, warning=FALSE}
+summary(fit_rstanarm)
+```
+
+When fitting a model using MCMC, it is important to check if the chains have converged.
+
+```{r}
+library(bayesplot)
+
+fit_rstanarm %>%
+  mcmc_trace()
+```
+
+### Bayesian Network
+
+To fulfill my curiosity, let me throw Bayesian Network to this data and see how things go.
+
+First, let us take a quick look of the structure sought by conditional dependency between variables. What's interesting is *Treat* directly links to the interaction term but *Prewt*, the other interaction term component, is actually linked to *Prewt2* first before it goes to the interaction term. 
+
+```{r}
+library(bnlearn)
+anorexia = data.frame(anorexia)
+plot(hc(anorexia))
+```
+
+
+Next, we can immediately find out conditional probability tables (CPT) at each node. For example, say I am interested in *Postwt*, which I can use *bn.fit* to run a quick EM algorithm to learn CPT for this variable. 
+
+```{r}
+fittedBN = bn.fit(hc(anorexia), data = anorexia,
+                  keep.fitted = TRUE,)
+print(fittedBN$Postwt)
+```
+
