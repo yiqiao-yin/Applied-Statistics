@@ -1,0 +1,78 @@
+---
+title: "9b"
+author: "Yiqiao Yin"
+date: "2/23/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1: Q10.1
+
+### (a) Theoretical Approach
+
+Consider the data $\theta$ drawn from a normal distribution. Let us write $\theta \sim \mathcal{N}(\mu, \sigma)$. If we draw this data $n$ times, then each draw the simulated data would have error $\sigma/\sqrt{n}$ assuming error is measured using standard error. 
+
+In the problem, the goal is to measure if the simulated data can be within 0.1 of the standard error. This means we want standard error from drawn data to be within $0.1\sigma$. If $n = 100$, then $\sqrt{100} = 10$ and this goal can be satisfied. Because $\sigma/\sqrt{100} = 0.1\sigma$. 
+
+We can summarize that in order for us to achieve this goal the sample size should be at least 100 or above. 
+
+### (b) Simulation
+
+In this problem, let us use *R* to simulate the data $y$ first and here $y$ is drawn from normal distribution given $\theta$. In the following, we draw sample data given a sample size which can be taken from the vector *n_range*. Given a particular sample size, $\mu$, and $\sigma$, we are able to draw data, namely *data_y$ below, that is based on normal distribution. We then arrange the sample size, 2.5\% quantile, and 7.5\% quantile together in a table.
+
+```{r, message=FALSE, error=FALSE, warning=FALSE}
+n_range = 10^(1:7)
+mu = 0
+sigma = 1
+data_y = data.frame(
+  n = n_range,
+  quantile_0dot025 = sapply(
+    n_range,
+    function(n) {
+      abs(- 1.96 - quantile(rnorm(n, mean=mu, sd=sigma), c(.025)))
+    }
+  ),
+  quantile_0dot975 = sapply(
+    n_range,
+    function(n) {
+      abs(+ 1.96 - quantile(rnorm(n, mean=mu, sd=sigma), c(.975)))
+    }
+  )
+)
+data.table::data.table(data_y)
+```
+
+We observe that when $n = 100$ the 2.5\% quantile does not necessarily fall within 0.1. However, when we get to $n = 1000$, it is within 0.1 threshold. For the 97.5\% quantile, the sample size $n = 1000$ is not sufficient and we might need to go to $n = 10000$.
+
+## Problem 2: Q10.4
+
+### (a) Proof
+
+Prove that rejection sampling gives draws from $p(θ|y)$.
+
+\textbf{Proof.} Let us consider $\theta$ drawn from a distribution proportional to $g(\theta)$. Let $U$ be random variable $U(0,1)$. We can write the CDF of draws accepted by rejection sampling to be the following
+
+\[
+\begin{array}{rcl}
+\mathbb{P}(\theta \le \theta^*|\theta \text{ is accepted})
+&=& \frac{\mathbb{P}(\theta \le \theta^* \text{ and } U \le p(\theta|y) / M g(\theta))}{\mathbb{P}(U \le p(\theta|y) / M g(\theta))} \\
+&=& \frac{\int_{-\infty}^{\theta^*} \int_0^{p(\theta|y) / (M g(\theta))} g(\theta) du d\theta}{\int_{-\infty}^{\infty} \int_0^{p(\theta|y) / (M g(\theta))} g(\theta) du d\theta} \\
+&=& \frac{\frac{1}{M} \int_{-\infty}^{\theta^*} p(\theta|y) d\theta}{1/M} \\
+&=& \int_{-\infty}^{\theta^*} p(\theta|y) d\theta \\
+\end{array}
+\]
+
+This is the CDF $\mathbb{P}(\theta \le \theta^*)$ and we are done.
+
+QED.
+
+### (b) 
+
+The proof above assumes that $g(\theta)$ is positive while $p(\theta)$ is positive, because we need to make sure that the $\theta$ has range that is well defined in $p(\theta)$. In addition, we have $p(\theta)/(M g(\theta) \le 1)$ required because in the last integral we have range $[0, p(\theta)/(M g(\theta))]$. If this boundedness condition is not required, the integral is not valid. 
