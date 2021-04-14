@@ -1,0 +1,253 @@
+---
+title: "10b"
+author: "Yiqiao Yin"
+date: "3/27/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem: 12.3
+
+Hamiltonian Monte Carlo: Program HMC in R for the bioassay logistic regression example
+from Chapter 3.
+
+- (a) Code the gradients analytically and numerically and check that the two programs give
+the same result.
+- (b) Pick reasonable starting values for the mass matrix, step size, and number of steps.
+- (c) Tune the algorithm to an approximate 65% acceptance rate.
+- (d) Run 4 chains long enough so that each has an effective sample size of at least 100.
+How many iterations did you need?
+- (e) Check that your inferences are consistent with those from the direct approach in
+Chapter 3.
+
+### Solution
+
+Let us recall the data.
+
+```{r}
+# Data
+x <-  c(-0.86, -0.30, -0.05,  0.73)
+y <-  c(0, 1, 3, 5)
+n <-  rep(5,4)
+```
+
+Assume we use linear regression. We can fit a linear model using *glm()* function in *R*. From the fit, we are able to get the coefficients and we are able to search for parameters.
+
+```{r}
+# ML estimation
+mlfit <- glm(cbind(y, n-y) ~ x, family = binomial)
+mlfit$coefficients = round(mlfit$coefficients*1000)/1000
+res1 = paste(paste("(",mlfit$coefficients[1], sep=""),
+             paste(mlfit$coefficients[2],")", sep=""), sep=",")
+print(mlfit)
+print(res1)
+```
+
+Instead, let us do Metropolis Algorithm first. Next, we are going to do a HMC algorithm.
+
+```{r}
+# Define function to compute posterior distribution
+posterior <- function(arg1) {
+  alpha <- arg1[1]
+  beta <- arg1[2]
+  posterior <-  1
+  
+  for (i in 1:length(y)) {
+    posterior <-  posterior * ( 
+      ( ( boot::inv.logit( alpha + beta * x[i] ) )^y[i] ) *
+        ( ( 1 - boot::inv.logit( alpha + beta * x[i] ) )^( n[i] - y[i] ) )
+    )
+  }
+  posterior
+} # End of function
+
+# Define a function draw multivariate gausian
+jumping <- function(theta, scale=.1) {
+  return(
+    mvtnorm::rmvnorm(
+      1,
+      mean = theta,
+      sigma = scale * diag(length(theta))))
+}
+
+# Define a function draw multivariate gausian
+d.jumping <- function(theta, theta_1, scale=.1) {
+  return(
+    mvtnorm::dmvnorm(
+      theta,
+      theta_1,
+      scale * diag(length(theta)))
+  )
+}
+```
+
+We can use the above helper function for Metropolis Algorithm. 
+
+```{r}
+sims <-  100
+theta <-  matrix(0,nrow = sims, ncol = 4)
+accept <-  rep(0,sims)
+r.all <-  rep(0,sims)
+theta[1,] <-  mlfit$coefficients
+
+for (i in 2:sims) {
+  theta.star <- jumping(theta[i-1,], .1)
+  r <- min(exp((log(posterior(theta.star))) - (log(posterior(theta[i - 1, ])))), 1)
+  if (is.nan(r)) {r <- 0}
+  r.all[i] <- r 
+  if (r < runif(1)) {
+    theta[i, ] <- theta.star
+    accept[i] <- 1
+  } else {
+    theta[i,] <- theta[i-1,]
+    accept[i] <- 0
+  }
+  
+  sum(accept)
+}
+
+print(paste0("Acceptance rate is ", round(sum(accept)/length(accept), 3)))
+```
+
+To raise the acceptance range to 65\% or above, we can use the following:
+
+```{r}
+sims <-  1000
+theta <-  matrix(0,nrow = sims, ncol = 4)
+accept <-  rep(0,sims)
+r.all <-  rep(0,sims)
+theta[1,] <-  mlfit$coefficients
+
+for (i in 2:sims) {
+  theta.star <- jumping(theta[i-1,], .1)
+  r <- min(exp((log(posterior(theta.star))) - (log(posterior(theta[i - 1, ])))), 1)
+  if (is.nan(r)) {r <- 0}
+  r.all[i] <- r 
+  if (r < runif(1)) {
+    theta[i, ] <- theta.star
+    accept[i] <- 1
+  } else {
+    theta[i,] <- theta[i-1,]
+    accept[i] <- 0
+  }
+  
+  sum(accept)
+}
+
+print(paste0("Acceptance rate is ", round(sum(accept)/length(accept), 3)))
+```
+Next, let us do HMC algorithm. First, let us redefine the data.
+
+```{r}
+# Data
+head(warpbreaks)
+x <-  c(-0.86, -0.30, -0.05,  0.73)
+n <- rep(5,4)
+y <-  c(0, 1, 3, 5)
+X <- model.matrix(y ~ x*n, data=data.frame(y,x))
+```
+
+In order to assist the *hmc()* function that we will use.
+
+```{r}
+# Helper function
+linear_posterior <- function(
+  theta,
+  y,
+  X,
+  a = 1e-4,
+  b = 1e-4,
+  sig2beta = 1e3) {
+  k <- length(theta)
+  beta_param <- as.numeric(theta[1:(k - 1)])
+  gamma_param <- theta[k]
+  n <- nrow(X)
+  result <- -(n / 2 + a) * gamma_param - exp(-gamma_param) / 2 *
+    t(y - X %*% beta_param) %*%
+    (y - X %*% beta_param) - b * exp(-gamma_param) -
+    1 / 2 * t(beta_param) %*% beta_param / sig2beta
+  return(result)
+}
+
+g_linear_posterior <- function(
+  theta, y, X, a = 1e-4, b = 1e-4,
+  sig2beta = 1e3) {
+  k <- length(theta)
+  beta_param <- as.numeric(theta[1:(k-1)])
+  gamma_param <- theta[k]
+  n <- nrow(X)
+  grad_beta <- exp(-gamma_param) * t(X) %*%
+    (y - X%*%beta_param) - beta_param / sig2beta
+  grad_gamma <- -(n/2 + a) + exp(-gamma_param)/2 *
+    t(y - X%*%beta_param) %*%
+    (y - X%*%beta_param) + b*exp(-gamma_param)
+  c(as.numeric(grad_beta), as.numeric(grad_gamma))
+}
+```
+
+Let us set up the environment for running HMC algorithm. Let us use two chains for now, so in the function we set *chain = 2*.
+
+```{r}
+N <- 2e3
+set.seed(143)
+eps_vals <- c(rep(2e-1, 4), 2e-2)
+fm1_hmc <- hmclearn::hmc(
+  N, theta.init = c(rep(0, 4), 1),
+  epsilon = eps_vals, L = 20,
+  logPOSTERIOR = linear_posterior,
+  glogPOSTERIOR = g_linear_posterior,
+  varnames = c(colnames(X), "log_sigma_sq"),
+  param = list(y = y, X = X), chains = 2,
+  parallel = FALSE)
+```
+
+```{r}
+summary(fm1_hmc, burnin=200)
+```
+
+```{r}
+plot(fm1_hmc, burnin=200)
+```
+
+```{r}
+f <- lm(y ~ n*x, data = data.frame(X))
+freq.param <- c(coef(f), 2*log(sigma(f)))
+hmclearn::diagplots(fm1_hmc, burnin=200, comparison.theta=freq.param)
+```
+
+Now, let us try with four chains. Thus, let us set *chain = 4*.
+
+```{r}
+N <- 2e3
+set.seed(143)
+eps_vals <- c(rep(2e-1, 4), 2e-2)
+fm2_hmc <- hmclearn::hmc(
+  N, theta.init = c(rep(0, 4), 1),
+  epsilon = eps_vals, L = 20,
+  logPOSTERIOR = linear_posterior,
+  glogPOSTERIOR = g_linear_posterior,
+  varnames = c(colnames(X), "log_sigma_sq"),
+  param = list(y = y, X = X), chains = 4,
+  parallel = FALSE)
+```
+
+```{r}
+summary(fm2_hmc, burnin=200)
+```
+
+```{r}
+plot(fm2_hmc, burnin=200)
+```
+
+```{r}
+f <- lm(y ~ n*x, data = data.frame(X))
+freq.param <- c(coef(f), 2*log(sigma(f)))
+hmclearn::diagplots(fm2_hmc, burnin=200, comparison.theta=freq.param)
+```
