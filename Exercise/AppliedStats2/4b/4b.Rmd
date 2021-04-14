@@ -1,0 +1,325 @@
+---
+title: "4b"
+author: "Yiqiao Yin"
+date: "2/7/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Hierarchical models and multiple comparisons
+
+### Reproduce the probabilities in S 5.5.
+
+First let us create data and then let us generate posterior $\tau$. Last, we plot the posterior $\tau$ on a graph. 
+
+```{r}
+y = c(28, 8, -3, 7, -1, 1, 18, 12)
+sigma2 = c(15, 10, 16, 11, 9, 11, 10, 18)^2
+J = length(y)
+
+
+varInverse = function(sigma2, tau){
+  sum(1/(sigma2+tau^2))
+}
+
+muHat = function(y, sigma2, tau){
+  sum(1/(sigma2+tau^2) * y) / varInverse(sigma2, tau)
+}
+
+post_tau = function(y, sigma2, tau, mu_h){
+  varInverse(sigma2, tau)^(-1/2)  * prod((sigma2 + tau^2)^(-1/2) * exp(-(y - mu_h)^2 / (2*(sigma2 + tau^2))))
+}
+
+interval = 0.01
+max = 30
+
+tau = (1:(max/interval)) * interval
+post = tau
+
+for (i in 1:length(tau)){
+  mu_h = muHat(y, sigma2, tau[i])
+  post[i] = post_tau(y, sigma2, tau[i], mu_h)
+}
+
+posterior = data.frame(tau, post)
+plot(posterior, xaxs = "i", yaxs = "i", 
+     type = "l", ylab = "posterior", xlab = "tau")
+```
+
+Next, we simulate from $p(\tau|y)$ the posterior parameter $\tau$ given data $y$.
+
+```{r}
+normPosterior = post/sum(post*interval)
+cdfTarget = cumsum(normPosterior) * interval
+cdfDF = data.frame(tau, cdfTarget)
+plot(cdfDF, xaxs = "i", yaxs = "i", type = "l")
+```
+
+```{r}
+N = 10000
+uniDF = runif(N, 0, 1)
+tauVector = rep(NA, N)
+for (i in 1:N) {
+  tauVector[i] = (sum(cdfTarget < uniDF[i])+1) * interval
+}
+
+hist(tauVector, breaks = 30, xaxs = "i", yaxs = "i",
+     main = "Histogram of tau")
+```
+
+We simulate $\mu|\tau,y$.
+
+```{r}
+muVec = rep(NA, N)
+for (i in 1:N) {
+  muVec[i] = rnorm(1, muHat(y, sigma2, tauVector[i]), varInverse(sigma2, tauVector[i])^(-.5))
+}
+
+hist(muVec, xaxs = "i", yaxs = "i",
+     xlab = "mu",
+     main = "Histogram", breaks = 30)
+```
+
+
+```{r}
+thetaHat = V = thetaVec = matrix(NA, N, J)
+for (j in 1:J){
+  V[,j] = 1/ (sigma2[j]^-1 + tauVector^-2)
+  thetaHat[,j] = (y[j]/sigma2[j] + muVec/tauVector^2) * V[,j] 
+  thetaVec[, j] = rnorm(N, thetaHat[,j], V[,j]^(1/2))
+}
+
+
+matplot(thetaVec, type = c("b"), pch=0.5, col = 1:ncol(thetaVec)) #plot
+legend("topleft", legend = LETTERS[1:8], col=1:ncol(thetaVec), pch=0.5) # optional legend
+
+library(ggplot2)
+library(tidyr)
+ggplot(gather(data.frame(thetaVec)), aes(value, color=key)) + geom_freqpoly(binwidth=2) + 
+  scale_color_discrete(name = "School", labels = c("A", "B", "C", "D", "E", "F", "G", "H"))
+
+```
+
+Last we compute the probability of a school $j$ that is better than another school $k$.
+
+```{r}
+maxes = apply(thetaVec, 1, which.max)
+prob_max = table(maxes) / N
+comps = matrix(NA, J, J)
+
+for (i in 1:(J-1)){
+  for (j in (i+1):J){
+    comps[i,j] = sum(thetaVec[,i] > thetaVec[,j]) / N
+    comps[j,i] = 1 - comps[i,j]
+  }
+}
+
+pmax = sprintf("%0.2f", prob_max)
+comp_str = matrix(sprintf("%0.2f", comps), J, J)
+comp_str[comp_str == "NA"] = "--"
+
+schools = c("A", "B", "C", "D", "E", "F", "G", "H")
+library(kableExtra)
+kable(cbind(schools, pmax, comp_str),
+      format = "html", digits = 2,
+      col.names = c("School", "Pr(Best)", schools)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+### Repeat the above using a large $\tau$.
+
+```{r}
+y = c(28, 8, -3, 7, -1, 1, 18, 12)
+sigma2 = c(15, 10, 16, 11, 9, 11, 10, 18)^2
+J = length(y)
+
+varInverse = function(sigma2, tau){
+  sum(1/(sigma2+tau^2))
+}
+
+muHat = function(y, sigma2, tau){
+  sum(1/(sigma2+tau^2) * y) / varInverse(sigma2, tau)
+}
+
+post_tau = function(y, sigma2, tau, mu_h){
+  varInverse(sigma2, tau)^(-1/2)  * prod((sigma2 + tau^2)^(-1/2) * exp(-(y - mu_h)^2 / (2*(sigma2 + tau^2))))
+}
+
+interval = 0.01
+max = 30
+
+tau = (1:(max/interval)) * interval
+
+post = tau
+
+for (i in 1:length(tau)){
+  mu_h = muHat(y, sigma2, tau[i])
+  post[i] = post_tau(y, sigma2, tau[i], mu_h)
+}
+
+posterior = data.frame(tau, post)
+plot(posterior, xaxs = "i", yaxs = "i", 
+     type = "l", ylab = "posterior", xlab = "tau")
+```
+
+```{r}
+normPosterior = post/sum(post*interval)
+cdfTarget = cumsum(normPosterior) * interval
+cdfDF = data.frame(tau, cdfTarget)
+plot(cdfDF, xaxs = "i", yaxs = "i", type = "l")
+```
+
+```{r}
+N = 10000
+uniDF = runif(N, 0, 1)
+tauVector = rep(NA, N)
+for (i in 1:N) {
+  tauVector[i] = (sum(cdfTarget < uniDF[i])+1) * interval * 1000
+}
+
+hist(tauVector, breaks = 30, xaxs = "i", yaxs = "i",
+     main = "Histogram of tau")
+```
+
+```{r}
+muVec = rep(NA, N)
+for (i in 1:N) {
+  muVec[i] = rnorm(1, muHat(y, sigma2, tauVector[i]), varInverse(sigma2, tauVector[i])^(-.5))
+}
+```
+
+```{r}
+hist(muVec, xaxs = "i", yaxs = "i",
+     xlab = "mu",
+     main = "Histogram", breaks = 30)
+```
+
+```{r}
+thetaHat = V = thetaVec = matrix(NA, N, J)
+for (j in 1:J){
+  V[,j] = 1/ (sigma2[j]^-1 + tauVector^-2)
+  thetaHat[,j] = (y[j]/sigma2[j] + muVec/tauVector^2) * V[,j] 
+  thetaVec[, j] = rnorm(N, thetaHat[,j], V[,j]^(1/2))
+}
+
+matplot(thetaVec, type = c("b"), pch=0.5, col = 1:ncol(thetaVec)) #plot
+legend("topleft", legend = LETTERS[1:8], col=1:ncol(thetaVec), pch=0.5) # optional legend
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+ggplot(gather(data.frame(thetaVec)), aes(value, color=key)) + geom_freqpoly(binwidth=2) + 
+  scale_color_discrete(name = "School", labels = c("A", "B", "C", "D", "E", "F", "G", "H"))
+```
+
+```{r}
+maxes = apply(thetaVec, 1, which.max)
+prob_max = table(maxes) / N
+comps = matrix(NA, J, J)
+
+for (i in 1:(J-1)){
+  for (j in (i+1):J){
+    comps[i,j] = sum(thetaVec[,i] > thetaVec[,j]) / N
+    comps[j,i] = 1 - comps[i,j]
+  }
+}
+
+pmax = sprintf("%0.2f", prob_max)
+comp_str = matrix(sprintf("%0.2f", comps), J, J)
+comp_str[comp_str == "NA"] = "--"
+
+schools = c("A", "B", "C", "D", "E", "F", "G", "H")
+library(kableExtra)
+kable(cbind(schools, pmax, comp_str),
+      format = "html", digits = 2,
+      col.names = c("School", "Pr(Best)", schools)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+### Comment
+
+The setting with large $\tau$ gives us more extreme situations. For example, the first row for school A, we have chance that school A is better than the rest of the school (B to H) to be ranging from 
+
+```{r}
+print(paste0("Range = [", min(comps[1,-1]), ", ", max(comps[1,-1]), "]"))
+```
+
+which is a much wider range than part (a). 
+
+Another interesting thing is from the *ggplot* above we see a much wider variance in (b) than in (a) due to this change of setting. 
+
+### Change $\tau$ to 0
+
+Let us change $\tau$ to a very small number to approximate 0.
+
+```{r}
+N = 10000
+uniDF = runif(N, 0, 1)
+tauVector = rep(NA, N)
+for (i in 1:N) {
+  tauVector[i] = (sum(cdfTarget < uniDF[i])+1) * interval * 0.0001
+}
+
+# hist(tauVector, breaks = 30, xaxs = "i", yaxs = "i",
+#      main = "Histogram of tau")
+
+muVec = rep(NA, N)
+for (i in 1:N) {
+  muVec[i] = rnorm(1, muHat(y, sigma2, tauVector[i]), varInverse(sigma2, tauVector[i])^(-.5))
+}
+
+# hist(muVec, xaxs = "i", yaxs = "i",
+#      xlab = "mu",
+#      main = "Histogram", breaks = 30)
+
+
+thetaHat = V = thetaVec = matrix(NA, N, J)
+for (j in 1:J){
+  V[,j] = 1/ (sigma2[j]^-1 + tauVector^-2)
+  thetaHat[,j] = (y[j]/sigma2[j] + muVec/tauVector^2) * V[,j] 
+  thetaVec[, j] = rnorm(N, thetaHat[,j], V[,j]^(1/2))
+}
+
+# matplot(thetaVec, type = c("b"), pch=0.5, col = 1:ncol(thetaVec)) #plot
+# legend("topleft", legend = LETTERS[1:8], col=1:ncol(thetaVec), pch=0.5) # optional legend
+
+# library(ggplot2)
+# library(tidyr)
+# ggplot(gather(data.frame(thetaVec)), aes(value, color=key)) + geom_freqpoly(binwidth=2) + 
+#   scale_color_discrete(name = "School", labels = c("A", "B", "C", "D", "E", "F", "G", "H"))
+
+maxes = apply(thetaVec, 1, which.max)
+prob_max = table(maxes) / N
+comps = matrix(NA, J, J)
+
+for (i in 1:(J-1)){
+  for (j in (i+1):J){
+    comps[i,j] = sum(thetaVec[,i] > thetaVec[,j]) / N
+    comps[j,i] = 1 - comps[i,j]
+  }
+}
+
+pmax = sprintf("%0.2f", prob_max)
+comp_str = matrix(sprintf("%0.2f", comps), J, J)
+comp_str[comp_str == "NA"] = "--"
+
+schools = c("A", "B", "C", "D", "E", "F", "G", "H")
+library(kableExtra)
+kable(cbind(schools, pmax, comp_str),
+      format = "html", digits = 2,
+      col.names = c("School", "Pr(Best)", schools)) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+From the results of above table, we observe that almost everyone is equal probability. For example, everyone is around 12\% chance of being the best (from the first column). This is approximately 1/8. 
+
+Another interesting fact is for the first row we observe that the chance for school A to be better than B, C, ..., H are equal when they are in a pair-wise comparison. Hence, they are all 50\%. 
