@@ -1,0 +1,278 @@
+---
+title: "10a"
+author: "Yiqiao Yin"
+date: "3/23/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Metropolis Algorithm
+
+This is a self-learned introduction of *Metropolis Algorithm*. In the following, let me introduce the algorithm and lay out the steps of the procedure. Next, let us introduce diagnosis tools such as traceplot to visualize the fit. 
+
+In other words, the following notebook covers:
+- introduction
+- diagnosis
+
+### Introduction
+
+The Metropolis algorithm is common for acceptance or rejection. In other words, it is also known as acceptance/rejection sampling algorithm. It is an important concept in Bayesian inference.
+
+At each step $t$, we draw a proposal distribution. This new draw can be accepted or rejected according to a certain threshold. The threshold is dependent on the ratio of the evaluated density at the proposal and the previous step $t-1$. Consider a proposal distribution $q(\theta^*|\theta^{t-1})$. It is required for this algorithm that this $q(\cdot)$ is symmetric. Let us state the algorithm
+
+- Draw a starting data $\theta_0$
+- For $t = 1, 2, ...$: let us 
+  - sample $\theta^*$ from the proposal distribution $p(\theta^*|\theta^{t-1})$;
+  - compute the ratio of the target densities evaluated at $\theta^*$ and $\theta^{t-1}$, that is,
+  $$s = p(\theta^*|y) / p(\theta^{t-1}|y)$$
+  - set $\theta^t$ to be $\theta^*$ with probability $\min(s,1)$ and $\theta^{t-1}$ otherwise.
+  
+In order to demonstrate the procedure of the algorithm, let us create a toy data that has an independent variable $x$ and a dependent variable $y$. Let us further assume the data to have linear relationship between independent variable and the dependent variable. In other words, let us suppose 
+$$y = \beta_0 + \beta_1 X + \epsilon, \text{ while } \epsilon \sim \mathcal{N}(0, \sigma)$$
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# libraries
+library(ggplot2)
+library(gridExtra)
+library(MHadaptive)
+library(MCMCpack)
+
+# set up parameters
+sampleNum <- 50
+b0 <- 2
+b1 <- 4
+sd <- 2
+
+# simulate data
+x <- rnorm(sampleNum, 10, sqrt(5))
+y <- b0 + b1*x + rnorm(sampleNum, 0, sd) 
+
+# plot data
+df <- data.frame(x, y)
+g1 <- ggplot(df, aes(x=x, y=y)) + geom_point() + geom_abline(slope = b1, intercept = b0, col = "red")
+g1
+```
+The summary of linear regression model can be reported using *lm()* below.
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# for reference
+summary(lm(y~x))
+```
+
+Now let us define a function to evaluate the likelihood of the model.
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+posterior <- function(param){
+
+    # take the input parameters of the intercept, slope and std dev
+    b0 <- param[1]
+    b1 <- param[2]
+    sd <- param[3]
+
+    # compute the expected value given the input parameters
+    y_hat <- b0 + b1*x
+
+    # compute the log likelihoods
+    loglikelihoods <- dnorm(y, mean = y_hat, sd = sd, log = T)
+
+    # sum the log likelihoods and return
+    sumll <- sum(loglikelihoods)
+
+    # priors - non-formative
+    b0_prior <- dnorm(b0, sd=5, log=TRUE)
+    b1_prior <- dnorm(b1, sd=5, log=TRUE)
+    sd_prior <- dnorm(sd, sd=5, log=TRUE)
+
+
+    # now return the sum of all components
+    return(sum(sumll, b0_prior, b1_prior, sd_prior))
+}
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# MH algorithm
+metropolisMCMC <- function(theta0, proposal_sd, iter, burnin){
+
+    # initialize the chain
+    chain = matrix(NA, nrow=iter+1, ncol=length(theta0))
+    chain[1,] = theta0
+    acceptance <- rep(0, iter)
+
+    # each interaction take a draw from the proposal for each parameter
+    # calculate the acceptance probability
+    # either accept or reject the proposal given the probability r
+    for (i in 1:iter){
+      theta_star <- rnorm(3, mean = chain[i,], sd = proposal_sd)
+      r <- exp(posterior(theta_star) - posterior(chain[i,]))
+      if (runif(1) < r){
+          chain[i+1,] = theta_star
+          acceptance[i] <- 1
+      }else{
+          chain[i+1,] = chain[i,]
+      }
+    }
+    cat("Acceptance rate:", mean(acceptance[burnin:iter]))
+    return(chain[burnin:iter,])
+}
+
+theta0 <- c(1, 2, 1)
+prop_sd <- c(0.5, 0.1, 0.25)
+its <- 50000
+burn <- 5000
+chain <- metropolisMCMC(theta0, prop_sd, its, burn)
+```
+
+### Diagnosis
+
+With the above algorithm coded, we now want to use some visualization techniques such as trace plot to diagnose if the model is a good fit or not. 
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# select burn in
+colnames(chain) <- c("b0", "b1", "sd")
+burnt_chain_df <- cbind(data.frame(chain), data.frame(iter = 1:nrow(chain)))
+
+# plot function
+posterior_densities <- function(){
+  # initialize list
+  gg_list <- list()
+
+  # create plots and store in a list
+  gg_list[["b0"]] <- ggplot(burnt_chain_df[,c("iter", "b0")], aes(x=b0, y=..density..)) + 
+    geom_histogram(fill = "darkcyan", col = "black") +
+    geom_area(stat="density", fill="darkcyan", alpha=0.5) +
+    geom_vline(xintercept = b0, col="red", lty=2) +
+    geom_vline(aes(xintercept = mean(b0)), lty=2) +
+    labs(title="b0 posterior")
+
+  gg_list[["b1"]] <- ggplot(burnt_chain_df[,c("iter", "b1")], aes(x=b1, y=..density..)) + 
+    geom_histogram(fill = "darkcyan", col = "black") +
+    geom_area(stat="density", fill="darkcyan", alpha=0.5) +
+    geom_vline(xintercept = b1, col="red", lty=2) +
+    geom_vline(aes(xintercept = mean(b1)), lty=2) + 
+    labs(title="b1 posterior")
+
+  gg_list[["sd"]] <- ggplot(burnt_chain_df[,c("iter", "sd")], aes(x=sd, y=..density..)) + 
+    geom_histogram(fill = "darkcyan", col = "black") +
+    geom_area(stat="density", fill="darkcyan", alpha=0.5) +
+    geom_vline(xintercept = sd, col="red", lty=2) +
+    geom_vline(aes(xintercept = mean(sd)), lty=2) +
+    labs(title="sd posterior")
+
+  gg_list[["b0_trace"]] <- ggplot(burnt_chain_df[,c("iter", "b0")], aes(x=iter, y=b0)) + 
+    geom_line() + 
+    geom_hline(aes(yintercept = mean(b0))) + 
+    geom_hline(yintercept = b0, col="red") +
+    labs(title="b0 trace")
+
+  gg_list[["b1_trace"]] <- ggplot(burnt_chain_df[,c("iter", "b1")], aes(x=iter, y=b1)) + 
+    geom_line() + 
+    geom_hline(aes(yintercept = mean(b1))) + 
+    geom_hline(yintercept = b1, col="red") +
+    labs(title="b1 trace")
+
+  gg_list[["sd_trace"]] <- ggplot(burnt_chain_df[,c("iter", "sd")], aes(x=iter, y=sd)) + 
+    geom_line() + 
+    geom_hline(aes(yintercept = mean(sd))) + 
+    geom_hline(yintercept = sd, col="red") +
+    labs(title="sd trace")
+
+
+  # arrange plots in a grid
+  return(grid.arrange(grobs=gg_list, nrow=3, ncol=2, as.table=F))
+}
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+posterior_densities()
+```
+
+Comment:
+
+With the diagnosis above us, let us make the following observations:
+
+- The fit is not perfect. For example, we know from the underlying model that $\beta_0$ is 2. However, this is not exactly what we see in the plot above. For the posterior distribution for $\beta_0$ after the simulation above the red dotted line $\beta_0 = 2$ is not really at the center of the distribution. In other words, there is still room for improvement. In addition, we observe the same pattern for $\beta_1$ since the red dotted line $\beta_1 = 4$ is not at the center of the distribution either.
+
+- After the burn-in periods, the traceplots look relatively healthy and convergent. Hence, this is a good sign. However, since the mean is not really at the desired values for ground truth. There is place for improvement.
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+report = rbind(
+  apply(chain, 2, mean),
+  apply(chain, 2, sd) )
+rownames(report) = c("Mean", "SD")
+data.table::data.table(report, keep.rownames = TRUE)
+```
+
+### Improvements
+
+Let us revise the following algorithm, especially step 2:
+
+- Draw a starting data $\theta_0$
+- For $t = 1, 2, ...$: let us 
+  - sample $\theta^*$ from the proposal distribution $p(\theta^*|\theta^{t-1})$;
+  - compute the ratio of the target densities evaluated at $\theta^*$ and $\theta^{t-1}$, that is,
+  $$s = \frac{p(\theta^*|y)/ q_t(\theta^*|\theta_{t-1})}{p(\theta^{t-1}|y) / q_t(\theta_{t-1}|\theta^*)}$$
+  
+  - set $\theta^t$ to be $\theta^*$ with probability $\min(s,1)$ and $\theta^{t-1}$ otherwise.
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# Metropolis-Hastings algorithm
+metropHastingsMCMC <- function(theta0, proposal_sd, iter, burnin){
+
+    # initialise the chain
+    chain = matrix(NA, nrow=iter+1, ncol=length(theta0))
+    chain[1,] = theta0
+    acceptance <- array(0, c(iter, length(theta0)))
+
+    # each iteraction take a draw from the proposal for each parameter
+    # calculate teh acceptance probability
+    # either accept or reject the proposal given the probability r
+    for (i in 1:iter){
+      theta_star <- rnorm(3, mean = chain[i,], sd = proposal_sd)
+      r <- exp(posterior(theta_star) - dnorm(theta_star, mean = chain[i,], sd = proposal_sd, log = T) - 
+               posterior(chain[i,]) + dnorm(chain[i,], mean = theta_star, sd = proposal_sd, log = T))
+
+      # now that r is a vector of 3 values representing each parameter we need to accept/reject each individually
+      for(k in 1:3){
+          if (runif(1) < r[k]){
+              chain[i+1,k] = theta_star[k]
+              acceptance[i,k] <- 1
+          }else{
+              chain[i+1,k] = chain[i,k]
+        }
+      }
+    }
+    cat("Acceptance rate:", mean(acceptance[burnin:iter]))
+    return(chain[burnin:iter,])
+}
+
+chain <- metropHastingsMCMC(theta0, prop_sd, its, burn)
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+# select burn in
+colnames(chain) <- c("b0", "b1", "sd")
+burnt_chain_df <- cbind(data.frame(chain), data.frame(iter = 1:nrow(chain)))
+
+posterior_densities()
+```
+
+Comment:
+
+Overall we observe improvement for this fit based on the revised threshold $s$ defined in step 2 of the improved algorithm.
+
+Specifically, the first comment is that the mean of $\beta$'s fall in an range that is close to the ground truth. From the summary table below, we observe that posterior mean for $\beta_0$ and $\beta_1$ are closer to the theoretical values we know of. Moreover, it is also more apparent that the traceplot is convergent after the burn-in period with mean to be closer to the real values.
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+report = rbind(
+  apply(chain, 2, mean),
+  apply(chain, 2, sd) )
+rownames(report) = c("Mean", "SD")
+data.table::data.table(report, keep.rownames = TRUE)
+```
