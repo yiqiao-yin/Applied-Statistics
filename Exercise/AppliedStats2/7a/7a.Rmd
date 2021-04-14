@@ -1,0 +1,207 @@
+---
+title: "7a"
+author: "Yiqiao Yin"
+date: "2/23/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Model Fitting and Expansion
+
+Assignment:
+Simulate data from a sparse regression where there are 100 predictors but most of the coefficients are near zero.  Then fit regression models in Stan with various hierarchical models for the coefficients, including 
+- zero-centered normal ("ridge"), 
+- double exponential ("lasso"), and 
+- t models.
+
+Use leave-one-out cross validation to compare the predictive accuracy of the three models fit in the previous homework.
+
+### I. Multivariate Regresson on Sparse Data
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create a N x k matrix of covariates
+N = 250
+K = 100
+
+# Create covariates and column names
+covariates = replicate(K, rbinom(n=N, 1, 0.5))
+colnames(covariates) = paste0("X", 1:100)
+
+# Create the model matrix with intercept
+X = cbind(Intercept=1, covariates)
+
+# Create the model matrix with intercept
+X = cbind(Intercept=1, covariates)
+
+# Create a normally distributed variable that is a function of the covariates
+coefs = matrix(rnorm(100+1, 0, 1), 101)
+mu = X %*% coefs
+sigma = 2
+y = rnorm(N, mu, sigma)
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run lm for later comparison; but go ahead and examine now if desired
+modlm = lm(y~., data=data.frame(X[,-1]))
+mean(modlm$coefficients)
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit1 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit1$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+# ex: let us take the first 3 and the last 3 as example
+library(bayesplot)
+library(tidyverse)
+fit1$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### II. Coefficients from Normal with Zero-center
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b_ii.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit2 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit2$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+fit2$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### III. Coefficients from Double Exponential
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b_iii.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit3 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit3$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+# ex: let us take the first 3 and the last 3 as example
+library(bayesplot)
+fit3$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### IV. Coefficients from Student-t
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Create the data list object for Stan input
+dat = list(N=N, K=ncol(X), y=y, X=X)
+
+# Use Stan: here use *cmdstanr* pakcage
+library(cmdstanr)
+path = "C:/Users/eagle/OneDrive/Course/CU Stats/STATS GR6102 - Applied Statistics II/InClass/stan/"
+file <- file.path(path, "linearModel_6b_iv.stan")
+mod <- cmdstan_model(file)
+mod$print()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Run *mod()* defined above
+fit4 <- mod$sample(
+  data = dat,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  save_warmup = TRUE,
+  refresh = 0 )
+
+# Report summary table
+fit4$summary()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+# Present traceplot for mixture and convergence
+# ex: let us take the first 3 and the last 3 as example
+library(bayesplot)
+fit4$draws()[,,c(1:3, 99:103)] %>% mcmc_trace()
+```
+
+### LOO
+
+Let us use leave-one-out to diagnose the fit for the above models.
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+loo2 <- fit2$loo()
+loo3 <- fit3$loo()
+loo4 <- fit4$loo()
+```
+
+```{r, messages=FALSE, warning=FALSE, error=FALSE}
+print(loo2)
+print(loo3)
+print(loo4)
+```
