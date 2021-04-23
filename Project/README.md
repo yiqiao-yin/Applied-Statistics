@@ -12,6 +12,8 @@ To enable a user-friendly environment, we post this app that was initially devel
 
 ### User Manual
 
+The link for shiny app is [here](https://y-yin.shinyapps.io/Iscore-App/).
+
 #### Input
 
 First, let us introduce the input parameters:
