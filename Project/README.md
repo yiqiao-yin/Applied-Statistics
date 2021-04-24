@@ -4,7 +4,7 @@ This is the folder for project. I apologize upfront because the current project 
 
 ## Simulation
 
-In this small simulation, let us examine the following model. Let $y = X_1 + X_2 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)}$ and $y = X_3 + X_4 + X_5 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)}$
+In this small simulation, let us examine the following model. Let $y = X_1 + X_2 \text{ with probabiltiy } 1/2 \text{ and (mod 2)}$ and $y = X_3 + X_4 + X_5 \text{ with probabiltiy } 1/2 \text{ and (mod 2)}$
 
 ## Shiny App
 
