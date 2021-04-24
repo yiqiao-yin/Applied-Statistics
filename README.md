@@ -4,7 +4,7 @@
 [![Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
 <p align="left">
-  <img width="300" src="https://github.com/yiqiao-yin/Applied-Statistics/blob/main/Project/figures/main.gif">
+  <img width="300" src="https://github.com/yiqiao-yin/Applied-Statistics/blob/main/Project/figures/mc-sim-pi-adv.gif">
 </p>
 <p align="left">
 	<img src="https://img.shields.io/badge/stars-30+-blue.svg"/>
