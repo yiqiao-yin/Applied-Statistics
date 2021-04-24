@@ -8,10 +8,10 @@ In this small simulation, let us examine the following model.
 
 \[y =
 \left\{
-\begin{tabular}[ll]
+\begin{array}[ll]
 X_1 + X_2 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)} \\
 X_3 + X_4 + X_5 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)} \\
-\end{tabular}
+\end{array}
 \right.\]
 
 ## Shiny App
