@@ -1,5 +1,16 @@
 # README
 
+[![AppliedStats](https://cdn.rawgit.com/sindresorhus/awesome/d7305f38d29fed78fa85652e3a63e154dd8e8829/media/badge.svg)](https://yinscapital.com/research/)
+[![Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+
+<p align="left">
+  <img width="300" src="https://github.com/yiqiao-yin/Applied-Statistics/blob/main/Project/figures/main.gif">
+</p>
+<p align="left">
+	<img src="https://img.shields.io/badge/stars-30+-blue.svg"/>
+	<img src="https://img.shields.io/badge/license-CC0-blue.svg"/>
+</p>
+
 This is the folder for project. I apologize upfront because the current project is related to a recent submission which is currently under review. However, in order to serve as part of the supplement, we made some simulated code available and open source here. Thank you for your understanding.
 
 ## Simulation
