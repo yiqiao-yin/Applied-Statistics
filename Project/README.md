@@ -15,6 +15,10 @@ X_3 + X_4 + X_5 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)} \\
 \right.
 \]
 
+```math
+SE = \frac{\sigma}{\sqrt{n}}
+```
+
 ## Shiny App
 
 To enable a user-friendly environment, we post this app that was initially developed by Jon Auerbach. Dr. Auerbach has graduated from the Department of Statistics. He designed the feature selection portion of the app. Later on, I upgraded the app by introducing the separation of training and testing set. We report test set porformance and the difference of the proposed methodology and tree-based algorithms. We use this app to illustrate the usage of the proposed methodology I-score.
