@@ -3,8 +3,8 @@
 [![AppliedStats](https://cdn.rawgit.com/sindresorhus/awesome/d7305f38d29fed78fa85652e3a63e154dd8e8829/media/badge.svg)](https://yinscapital.com/research/)
 [![Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
-<p align="left">
-  <img width="300" src="https://github.com/yiqiao-yin/Applied-Statistics/blob/main/Project/figures/mc-sim-pi-adv.gif">
+<p align="center">
+  <img width="800" src="https://github.com/yiqiao-yin/Applied-Statistics/blob/main/Project/figures/mc-sim-pi-adv.gif">
 </p>
 <p align="left">
 	<img src="https://img.shields.io/badge/stars-30+-blue.svg"/>
