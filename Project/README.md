@@ -7,10 +7,12 @@ This is the folder for project. I apologize upfront because the current project 
 In this small simulation, let us examine the following model. 
 
 $$y =
-\begin{array}[ll]
+\left\{
+\begin{tabular}[ll]
 X_1 + X_2 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)} \\
 X_3 + X_4 + X_5 & \text{ with probabiltiy } 1/2 \text{ and (mod 2)} \\
-\end{array}
+\end{tabular}
+\right.
 $$
 
 ## Shiny App
